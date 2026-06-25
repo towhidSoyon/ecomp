@@ -1,0 +1,89 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  slug        String    @unique
+  description String?
+  icon        String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+}
+
+model Product {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  description  String
+  price        Float
+  comparePrice Float?
+  stock        Int      @default(0)
+  images       String   // JSON array of image URLs
+  categoryId   String
+  featured     Boolean  @default(false)
+  active       Boolean  @default(true)
+  rating       Float    @default(0)
+  reviewCount  Int      @default(0)
+  sku          String?
+  brand        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  category   Category   @relation(fields: [categoryId], references: [id])
+  orderItems OrderItem[]
+
+  @@index([categoryId])
+  @@index([active])
+  @@index([featured])
+}
+
+model Order {
+  id             String   @id @default(cuid())
+  orderNumber    String   @unique
+  customerName   String
+  customerEmail  String
+  customerPhone  String?
+  shippingAddress String  // JSON object
+  status         String   @default("pending") // pending, processing, shipped, delivered, cancelled
+  paymentStatus  String   @default("unpaid") // unpaid, paid, refunded
+  paymentMethod  String   @default("card")
+  subtotal       Float
+  tax            Float    @default(0)
+  shipping       Float    @default(0)
+  discount       Float    @default(0)
+  total          Float
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  items OrderItem[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  productId String?
+  name      String
+  price     Float
+  quantity  Int
+  image     String?
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+}
