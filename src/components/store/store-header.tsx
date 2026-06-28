@@ -17,6 +17,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AuthDialog } from "@/components/auth/auth-dialog";
+import { useAuth } from "@/lib/auth";
 import {
   Sheet,
   SheetContent,
@@ -45,18 +48,39 @@ export function StoreHeader({
 }: StoreHeaderProps) {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const { user, signOut, loading } = useAuth();
   const [mounted, setMounted] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  const [authOpen, setAuthOpen] = React.useState(false);
+  const [authMode, setAuthMode] = React.useState<"login" | "signup">("login");
   const totalItems = useCartStore((s) => s.getTotalItems());
 
-  React.useEffect(() => setMounted(true), []);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  const goAdmin = () => router.push("/?view=admin");
+  const goAdmin = () => {
+    if (user?.role === "admin") {
+      router.push("/?view=admin");
+      return;
+    }
+    setAuthMode("login");
+    setAuthOpen(true);
+  };
 
   const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
 
-  const handleCategoryClick = (slug: string) => {
-    onSelectCategory(slug);
+  const navigateToProducts = (slug: string) => {
+    const params = new URLSearchParams();
+    if (slug && slug !== "all") {
+      params.set("category", slug);
+    }
+    if (searchQuery.trim()) {
+      params.set("search", searchQuery.trim());
+    }
+
+    const queryString = params.toString();
+    router.push(`/products${queryString ? `?${queryString}` : ""}`);
     setMobileOpen(false);
   };
 
@@ -86,9 +110,9 @@ export function StoreHeader({
             variant="ghost"
             size="sm"
             className="h-9 text-sm font-medium"
-            onClick={() => handleCategoryClick("all")}
+            onClick={() => navigateToProducts("all")}
           >
-            All
+            All Products
           </Button>
           {categories.slice(0, 6).map((c) => (
             <Button
@@ -96,7 +120,7 @@ export function StoreHeader({
               variant="ghost"
               size="sm"
               className="h-9 text-sm font-medium"
-              onClick={() => handleCategoryClick(c.slug)}
+              onClick={() => navigateToProducts(c.slug)}
             >
               {c.name}
             </Button>
@@ -125,27 +149,42 @@ export function StoreHeader({
             className="size-9"
             aria-label="Toggle theme"
           >
-            {mounted ? (
-              theme === "dark" ? (
-                <Sun className="size-5" />
-              ) : (
-                <Moon className="size-5" />
-              )
-            ) : (
+            {theme === "dark" ? (
               <Sun className="size-5" />
+            ) : (
+              <Moon className="size-5" />
             )}
           </Button>
 
-          {/* Admin */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={goAdmin}
-            className="hidden h-9 sm:inline-flex"
-          >
-            <LayoutDashboard className="size-4" />
-            <span className="hidden md:inline">Admin</span>
-          </Button>
+          {/* Auth / Admin */}
+          {loading ? null : user ? (
+            <div className="hidden items-center gap-2 sm:flex">
+              <Button variant="outline" size="sm" onClick={goAdmin} className="h-9">
+                <LayoutDashboard className="size-4" />
+                <span className="hidden md:inline">Admin</span>
+              </Button>
+              <Link href="/profile" className="flex items-center">
+                <Avatar>
+                  <AvatarFallback>{user.name?.charAt(0).toUpperCase() ?? "U"}</AvatarFallback>
+                </Avatar>
+              </Link>
+              <Button variant="ghost" size="sm" onClick={() => signOut()} className="h-9">
+                Sign out
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setAuthMode("login");
+                setAuthOpen(true);
+              }}
+              className="hidden h-9 sm:inline-flex"
+            >
+              Sign in
+            </Button>
+          )}
 
           {/* Cart */}
           <Button
@@ -153,12 +192,12 @@ export function StoreHeader({
             size="sm"
             onClick={onOpenCart}
             className="relative h-9 pr-3"
-            aria-label={`Open cart, ${totalItems} items`}
+            aria-label={mounted ? `Open cart, ${totalItems} items` : "Open cart"}
           >
             <ShoppingBag className="size-4" />
             <span className="hidden sm:inline">Cart</span>
             <AnimatePresence>
-              {totalItems > 0 && (
+              {mounted && totalItems > 0 && (
                 <motion.span
                   key={totalItems}
                   initial={{ scale: 0.5, opacity: 0 }}
@@ -214,7 +253,7 @@ export function StoreHeader({
                     Categories
                   </p>
                   <button
-                    onClick={() => handleCategoryClick("all")}
+                    onClick={() => navigateToProducts("all")}
                     className="flex h-10 items-center justify-between rounded-md px-3 text-sm font-medium transition-colors hover:bg-accent"
                   >
                     All Products
@@ -222,7 +261,7 @@ export function StoreHeader({
                   {categories.map((c) => (
                     <button
                       key={c.id}
-                      onClick={() => handleCategoryClick(c.slug)}
+                      onClick={() => navigateToProducts(c.slug)}
                       className="flex h-10 items-center justify-between rounded-md px-3 text-sm font-medium transition-colors hover:bg-accent"
                     >
                       {c.name}
@@ -248,11 +287,55 @@ export function StoreHeader({
                   <LayoutDashboard className="size-4" />
                   Admin Panel
                 </Button>
+
+                {user && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setMobileOpen(false);
+                      router.push('/profile');
+                    }}
+                    className="h-10 justify-start"
+                  >
+                    Profile
+                  </Button>
+                )}
+
+                {user ? (
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setMobileOpen(false);
+                      signOut();
+                    }}
+                    className="h-10 justify-start"
+                  >
+                    Sign out
+                  </Button>
+                ) : (
+                  <Button
+                    variant="default"
+                    onClick={() => {
+                      setMobileOpen(false);
+                      setAuthMode("login");
+                      setAuthOpen(true);
+                    }}
+                    className="h-10 justify-start"
+                  >
+                    Sign in
+                  </Button>
+                )}
               </div>
             </SheetContent>
           </Sheet>
         </div>
       </div>
+
+      <AuthDialog open={authOpen} onOpenChange={setAuthOpen} mode={authMode} onSuccess={() => {
+        if (authMode === "login") {
+          router.push("/");
+        }
+      }} />
     </header>
   );
 }

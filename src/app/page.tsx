@@ -4,12 +4,28 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Storefront from "@/components/store/storefront";
 import AdminPanel from "@/components/admin/admin-panel";
+import { useAuth } from "@/lib/auth";
 
 function AppContent() {
   const searchParams = useSearchParams();
   const view = searchParams.get("view");
+  const { user, loading } = useAuth();
 
   if (view === "admin") {
+    if (loading) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-background">
+          <div className="text-center text-sm text-muted-foreground">
+            Verifying admin access...
+          </div>
+        </div>
+      );
+    }
+
+    if (user?.role !== "admin") {
+      return <Storefront />;
+    }
+
     return <AdminPanel />;
   }
 

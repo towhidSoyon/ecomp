@@ -26,6 +26,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCartStore } from "@/lib/cart-store";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth";
+import { AuthDialog } from "@/components/auth/auth-dialog";
 
 interface CheckoutDialogProps {
   open: boolean;
@@ -69,20 +71,34 @@ export function CheckoutDialog({
   const items = useCartStore((s) => s.items);
   const subtotal = useCartStore((s) => s.getSubtotal());
   const clearCart = useCartStore((s) => s.clearCart);
+  const { user, loading } = useAuth();
 
   const [form, setForm] = React.useState<FormState>(initialForm);
+  const [authOpen, setAuthOpen] = React.useState(false);
   const [errors, setErrors] = React.useState<
     Partial<Record<keyof FormState, string>>
   >({});
   const [submitting, setSubmitting] = React.useState(false);
 
-  React.useEffect(() => {
-    if (open) {
-      setForm(initialForm);
-      setErrors({});
+  const resetCheckoutState = React.useCallback(() => {
+    setForm((current) => ({
+      ...current,
+      fullName: user?.name || current.fullName,
+      email: user?.email || current.email,
+    }));
+    setErrors({});
+    setSubmitting(false);
+  }, [user]);
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
       setSubmitting(false);
+      setErrors({});
+    } else {
+      resetCheckoutState();
     }
-  }, [open]);
+    onOpenChange(nextOpen);
+  };
 
   const tax = Math.round(subtotal * TAX_RATE * 100) / 100;
   const shipping = subtotal > FREE_SHIP_THRESHOLD || subtotal === 0 ? 0 : FLAT_SHIPPING;
@@ -114,6 +130,11 @@ export function CheckoutDialog({
   const handleSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
     if (items.length === 0) return;
+    if (loading) return;
+    if (!user) {
+      setAuthOpen(true);
+      return;
+    }
     if (!validate()) return;
 
     setSubmitting(true);
@@ -160,8 +181,8 @@ export function CheckoutDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] max-w-3xl gap-0 overflow-hidden p-0 sm:max-w-3xl">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent key={`${open}-${user?.email ?? "guest"}`} className="max-h-[92vh] max-w-3xl gap-0 overflow-hidden p-0 sm:max-w-3xl">
         <DialogHeader className="border-b p-4 sm:p-6">
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Lock className="size-5 text-emerald-600" />
@@ -382,7 +403,7 @@ export function CheckoutDialog({
             <Button
               type="submit"
               size="lg"
-              disabled={submitting || items.length === 0}
+              disabled={submitting || items.length === 0 || loading}
               className="mt-2 h-12 w-full text-base"
             >
               {submitting ? (
@@ -405,6 +426,16 @@ export function CheckoutDialog({
           </aside>
         </form>
       </DialogContent>
+      <AuthDialog open={authOpen} onOpenChange={setAuthOpen} mode="login" onSuccess={() => {
+        setAuthOpen(false);
+        if (open) {
+          setForm((current) => ({
+            ...current,
+            fullName: user?.name || current.fullName,
+            email: user?.email || current.email,
+          }));
+        }
+      }} />
     </Dialog>
   );
 }
