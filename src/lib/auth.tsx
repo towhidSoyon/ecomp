@@ -10,7 +10,7 @@ import {
   type AuthMode,
 } from "@/lib/auth-config";
 
-interface UserSession {
+export interface UserSession {
   id: string;
   name: string;
   email: string;
@@ -20,7 +20,7 @@ interface UserSession {
 interface AuthContextValue {
   user: UserSession | null;
   loading: boolean;
-  signIn: (email: string, password: string, mode?: AuthMode) => Promise<void>;
+  signIn: (email: string, password: string, mode?: AuthMode) => Promise<UserSession>;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
   updateProfile: (data: Partial<Pick<UserSession, "name" | "email">>) => Promise<void>;
@@ -79,49 +79,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         normalizedEmail === DEFAULT_ADMIN_EMAIL &&
         normalizedPassword === DEFAULT_ADMIN_PASSWORD
       ) {
-        const session = {
+        const session: UserSession = {
           id: "admin-default",
           name: "Admin User",
           email: DEFAULT_ADMIN_EMAIL,
-          role: "admin" as const,
+          role: "admin",
         };
         setUser(session);
         setStoredSession(session);
         toast.success("Signed in as admin");
-        return;
+        return session;
       }
 
       if (mode === "signup") {
-        const session = {
+        const session: UserSession = {
           id: `user-${Date.now()}`,
           name: normalizedEmail.split("@")[0],
           email: normalizedEmail,
-          role: "user" as const,
+          role: "user",
         };
         setUser(session);
         setStoredSession(session);
         toast.success("Account created");
-        return;
+        return session;
       }
 
       const storedSession = getStoredSession();
-      const isStoredUser = storedSession?.email === normalizedEmail;
-      if (isStoredUser) {
+      if (storedSession?.email === normalizedEmail) {
         setUser(storedSession);
         setStoredSession(storedSession);
         toast.success("Welcome back");
-        return;
+        return storedSession;
       }
 
-      const fallbackSession = {
-        id: `user-${Date.now()}`,
-        name: normalizedEmail.split("@")[0],
-        email: normalizedEmail,
-        role: "user" as const,
-      };
-      setUser(fallbackSession);
-      setStoredSession(fallbackSession);
-      toast.success("Signed in");
+      throw new Error(
+        "No account found. Please sign up first or use an existing account."
+      );
     },
     []
   );

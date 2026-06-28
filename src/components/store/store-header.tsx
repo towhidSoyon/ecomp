@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AuthDialog } from "@/components/auth/auth-dialog";
 import { useAuth } from "@/lib/auth";
+import { AuthPendingAction } from "@/lib/auth-config";
 import {
   Sheet,
   SheetContent,
@@ -53,7 +54,15 @@ export function StoreHeader({
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [authOpen, setAuthOpen] = React.useState(false);
   const [authMode, setAuthMode] = React.useState<"login" | "signup">("login");
+  const [pendingAction, setPendingAction] = React.useState<AuthPendingAction | null>(null);
   const totalItems = useCartStore((s) => s.getTotalItems());
+
+  const handleAuthOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setPendingAction(null);
+    }
+    setAuthOpen(nextOpen);
+  };
 
   React.useEffect(() => {
     setMounted(true);
@@ -64,6 +73,8 @@ export function StoreHeader({
       router.push("/?view=admin");
       return;
     }
+
+    setPendingAction("admin");
     setAuthMode("login");
     setAuthOpen(true);
   };
@@ -331,11 +342,22 @@ export function StoreHeader({
         </div>
       </div>
 
-      <AuthDialog open={authOpen} onOpenChange={setAuthOpen} mode={authMode} onSuccess={() => {
-        if (authMode === "login") {
-          router.push("/");
-        }
-      }} />
+      <AuthDialog
+        open={authOpen}
+        onOpenChange={handleAuthOpenChange}
+        mode={authMode}
+        onSuccess={() => {
+          if (pendingAction === "admin") {
+            router.push("/?view=admin");
+            setPendingAction(null);
+            return;
+          }
+
+          if (authMode === "login") {
+            router.push("/");
+          }
+        }}
+      />
     </header>
   );
 }
